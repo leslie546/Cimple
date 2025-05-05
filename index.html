@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Cimple</title>
+<style>
+  /* Reset */
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0; padding: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #000000; /* pure black background */
+    color: #d4af37; /* gold text */
+    max-width: 350px;
+    height: 600px;
+    overflow: hidden;
+    margin-left: auto;
+    margin-right: auto;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    text-align: center;
+    font-weight: 900;
+    font-size: 1.5em;
+    padding: 1em 0;
+    background: #000000;
+    color: #d4af37;
+    user-select: none;
+    border-bottom: 3px solid #d4af37; /* gold border */
+    letter-spacing: 2px;
+  }
+  main {
+    flex: 1;
+    padding: 0.7em 1em;
+    display: flex;
+    flex-direction: column;
+    gap: 0.7em;
+    overflow-y: auto;
+  }
+  section {
+    background: #1a1a1a; /* very dark gray black */
+    border-radius: 10px;
+    padding: 0.7em 1em;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5em;
+    box-shadow: 0 0 6px 1px #b99710;
+  }
+  label {
+    font-weight: 600;
+    font-size: 0.9em;
+    color: #d4af37; /* gold */
+  }
+  textarea {
+    background: #222222; /* dark neutral */
+    border: none;
+    border-radius: 7px;
+    font-family: monospace, monospace;
+    font-size: 0.9em;
+    color: #d4af37; /* gold */
+    padding: 0.6em;
+    resize: vertical;
+    min-height: 60px;
+    max-height: 140px;
+  }
+  textarea[readonly] {
+    background: #1b1b1b;
+  }
+  button {
+    background: transparent;
+    border: 2.5px solid #d4af37; /* gold border */
+    padding: 0.9em 0;
+    font-weight: 700;
+    font-size: 1em;
+    border-radius: 10px;
+    color: #d4af37; /* gold text */
+    cursor: pointer;
+    transition: background 0.3s ease, color 0.3s ease;
+    user-select: none;
+    box-shadow: 0 0 8px #b99710;
+  }
+  button:disabled {
+    border-color: #664d00;
+    color: #664d00;
+    box-shadow: none;
+    cursor: not-allowed;
+  }
+  button:hover:not(:disabled) {
+    background: #d4af37; /* gold background on hover */
+    color: #000000;
+    box-shadow: 0 0 15px #d4af37;
+  }
+  #videos {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+  }
+  video {
+    background-color: #000000;
+    border-radius: 11px;
+    width: 48%;
+    height: 180px;
+    object-fit: cover;
+    border: 3px solid #d4af37; /* gold border */
+    box-shadow: 0 0 12px #d4af37;
+  }
+  #chatBox {
+    flex: 1;
+    background: #1a1a1a;
+    border-radius: 10px;
+    padding: 0.5em;
+    font-size: 0.9em;
+    overflow-y: auto;
+    height: 120px;
+    white-space: pre-wrap;
+    color: #d4af37;
+  }
+  #inputRow {
+    display: flex;
+    gap: 8px;
+    margin-top: 0.4em;
+  }
+  #chatInput {
+    flex-grow: 1;
+    border-radius: 7px;
+    border: none;
+    padding: 0.6em;
+    font-size: 0.9em;
+    font-family: inherit;
+    background: #333333;
+    color: #d4af37;
+  }
+  #chatInput:disabled {
+    background: #1a1a1a;
+    color: #664d00;
+  }
+  #status {
+    text-align: center;
+    font-size: 0.85em;
+    opacity: 0.9;
+    height: 20px;
+    user-select: none;
+    color: #d4af37;
+  }
+  @media (max-width: 400px) {
+    video {
+      height: 140px;
+    }
+  }
+</style>
+</head>
+<body>
+<header>Cimple</header>
+<main>
+  <section id="videos">
+    <video id="localVideo" autoplay muted playsinline></video>
+    <video id="remoteVideo" autoplay playsinline></video>
+  </section>
+
+  <section>
+    <label>Your SDP (Share this)</label>
+    <textarea id="localSDP" readonly placeholder="Click Create Offer or Answer"></textarea>
+    <button id="copyLocalSDPBtn" disabled>Copy SDP</button>
+  </section>
+
+  <section>
+    <label>Paste remote SDP here</label>
+    <textarea id="remoteSDP" placeholder="Paste SDP from your peer"></textarea>
+    <button id="setRemoteSDPBtn">Set Remote SDP</button>
+  </section>
+
+  <section style="display:flex; gap: 10px;">
+    <button id="createOfferBtn">Create Offer</button>
+    <button id="createAnswerBtn" disabled>Create Answer</button>
+  </section>
+
+  <section style="display:flex; gap: 10px;">
+    <button id="startCallBtn" disabled>Start Call</button>
+    <button id="hangupBtn" disabled>Hang Up</button>
+  </section>
+
+  <section>
+    <label>Chat</label>
+    <div id="chatBox" tabindex="0" aria-live="polite"></div>
+    <div id="inputRow">
+      <input type="text" id="chatInput" placeholder="Type your message..." autocomplete="off" disabled />
+      <button id="sendMsgBtn" disabled>Send</button>
+    </div>
+  </section>
+
+  <section id="status" aria-live="polite" aria-atomic="true">Ready. Create offer or paste remote SDP to begin.</section>
+
+</main>
+
+<script>
+'use strict';
+
+const config = { iceServers: [{urls: 'stun:stun.l.google.com:19302'}] };
+
+let pc = null;
+let dc = null;
+let localStream = null;
+
+const localVideo = document.getElementById('localVideo');
+const remoteVideo = document.getElementById('remoteVideo');
+const localSDPTextarea = document.getElementById('localSDP');
+const remoteSDPTextarea = document.getElementById('remoteSDP');
+
+const createOfferBtn = document.getElementById('createOfferBtn');
+const createAnswerBtn = document.getElementById('createAnswerBtn');
+const setRemoteSDPBtn = document.getElementById('setRemoteSDPBtn');
+const copyLocalSDPBtn = document.getElementById('copyLocalSDPBtn');
+
+const startCallBtn = document.getElementById('startCallBtn');
+const hangupBtn = document.getElementById('hangupBtn');
+
+const chatBox = document.getElementById('chatBox');
+const chatInput = document.getElementById('chatInput');
+const sendMsgBtn = document.getElementById('sendMsgBtn');
+
+const statusEl = document.getElementById('status');
+
+function logStatus(msg){
+  console.log(msg);
+  statusEl.textContent = msg;
+}
+
+function showMsg(message, local = false){
+  const msgDiv = document.createElement('div');
+  msgDiv.textContent = (local ? 'You: ' : 'Peer: ') + message;
+  msgDiv.style.marginBottom = '4px';
+  msgDiv.style.wordBreak = 'break-word';
+  if(local){
+    msgDiv.style.textAlign = 'right';
+    msgDiv.style.color = '#d4af37';
+  } else {
+    msgDiv.style.color = '#d4af37';
+  }
+  chatBox.appendChild(msgDiv);
+  chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+function reset(){
+  if(dc){
+    dc.close();
+    dc = null;
+  }
+  if(pc){
+    pc.close();
+    pc = null;
+  }
+  if(localStream){
+    localStream.getTracks().forEach(t => t.stop());
+    localStream = null;
+    localVideo.srcObject = null;
+  }
+  remoteVideo.srcObject = null;
+  localSDPTextarea.value = '';
+  remoteSDPTextarea.value = '';
+  chatBox.textContent = '';
+  chatInput.value = '';
+  chatInput.disabled = true;
+  sendMsgBtn.disabled = true;
+  createAnswerBtn.disabled = true;
+  copyLocalSDPBtn.disabled = true;
+  startCallBtn.disabled = true;
+  hangupBtn.disabled = true;
+  setRemoteSDPBtn.disabled = false;
+  createOfferBtn.disabled = false;
+  logStatus('Ready. Create offer or paste remote SDP to begin.');
+}
+
+async function startLocalMedia(){
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia({video:true, audio:true});
+    localVideo.srcObject = localStream;
+  } catch(err){
+    logStatus('Could not access camera/mic: ' + err.message);
+  }
+}
+
+function setupDataChannel(dc){
+  dc.onopen = () => {
+    logStatus('Chat channel open. You can now chat.');
+    chatInput.disabled = false;
+    sendMsgBtn.disabled = false;
+  };
+  dc.onmessage = e => {
+    showMsg(e.data, false);
+  };
+  dc.onclose = () => {
+    logStatus('Chat channel closed.');
+    chatInput.disabled = true;
+    sendMsgBtn.disabled = true;
+  };
+  dc.onerror = e => {
+    logStatus('Chat channel error: ' + e.error);
+  };
+}
+
+function createConnection(isOfferer){
+  pc = new RTCPeerConnection(config);
+
+  if(localStream){
+    localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+  }
+
+  pc.ontrack = e => {
+    if(remoteVideo.srcObject !== e.streams[0]){
+      remoteVideo.srcObject = e.streams[0];
+      logStatus('Remote media stream received.');
+    }
+  };
+
+  pc.onicecandidate = event => {
+    if(event.candidate === null){
+      // ICE gathering complete
+      localSDPTextarea.value = JSON.stringify(pc.localDescription);
+      copyLocalSDPBtn.disabled = false;
+      logStatus('SDP is ready. Share it with peer.');
+    }
+  };
+
+  pc.onconnectionstatechange = () => {
+    if(!pc) return;
+    if(pc.connectionState === 'connected'){
+      logStatus('Peer connection established.');
+      startCallBtn.disabled = true;
+      hangupBtn.disabled = false;
+      createOfferBtn.disabled = true;
+      createAnswerBtn.disabled = true;
+      setRemoteSDPBtn.disabled = true;
+    } else if(pc.connectionState === 'disconnected'
+      || pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+      logStatus('Connection closed or failed.');
+      startCallBtn.disabled = false;
+      hangupBtn.disabled = true;
+      createOfferBtn.disabled = false;
+      createAnswerBtn.disabled = false;
+      setRemoteSDPBtn.disabled = false;
+      chatInput.disabled = true;
+      sendMsgBtn.disabled = true;
+      remoteVideo.srcObject = null;
+    }
+  };
+
+  if(isOfferer){
+    dc = pc.createDataChannel('chat');
+    setupDataChannel(dc);
+  } else {
+    pc.ondatachannel = event => {
+      dc = event.channel;
+      setupDataChannel(dc);
+    };
+  }
+}
+
+createOfferBtn.addEventListener('click', async () => {
+  reset();
+  await startLocalMedia();
+  createConnection(true);
+  try {
+    const offerDesc = await pc.createOffer();
+    await pc.setLocalDescription(offerDesc);
+    logStatus('Creating offer... please wait for SDP gather.');
+  } catch(err){
+    logStatus('Error creating offer: ' + err.message);
+  }
+});
+
+createAnswerBtn.addEventListener('click', async () => {
+  if(remoteSDPTextarea.value.trim() === ''){
+    alert('Please paste remote SDP offer first.');
+    return;
+  }
+  reset();
+  await startLocalMedia();
+  createConnection(false);
+  try {
+    const remoteDesc = JSON.parse(remoteSDPTextarea.value);
+    if(remoteDesc.type !== 'offer'){
+      alert('Remote SDP must be an offer to create an answer.');
+      return;
+    }
+    await pc.setRemoteDescription(remoteDesc);
+    const answerDesc = await pc.createAnswer();
+    await pc.setLocalDescription(answerDesc);
+    logStatus('Creating answer... please wait for SDP gather.');
+  } catch(err){
+    logStatus('Error creating answer: ' + err.message);
+  }
+});
+
+setRemoteSDPBtn.addEventListener('click', async () => {
+  if(!pc){
+    alert('Create offer or answer first.');
+    return;
+  }
+  if(remoteSDPTextarea.value.trim() === ''){
+    alert('Paste remote SDP before setting it.');
+    return;
+  }
+  try{
+    const remoteDesc = JSON.parse(remoteSDPTextarea.value);
+    await pc.setRemoteDescription(remoteDesc);
+    logStatus('Remote SDP set.');
+    if(pc.localDescription && pc.localDescription.type === 'offer'){
+      createAnswerBtn.disabled = false;
+    }
+    startCallBtn.disabled = true; // We wait for connection state
+    hangupBtn.disabled = false;
+  } catch(err){
+    logStatus('Error setting remote SDP: '+ err.message);
+  }
+});
+
+copyLocalSDPBtn.addEventListener('click', () => {
+  if(localSDPTextarea.value === '') return;
+  localSDPTextarea.select();
+  document.execCommand('copy');
+  logStatus('Copied SDP to clipboard.');
+});
+
+startCallBtn.addEventListener('click', () => {
+  if(!pc) return;
+  logStatus('Call started - peer connection active.');
+});
+
+hangupBtn.addEventListener('click', () => {
+  reset();
+});
+
+sendMsgBtn.addEventListener('click', () => {
+  const msg = chatInput.value.trim();
+  if(msg === '' || !dc || dc.readyState !== 'open') return;
+  dc.send(msg);
+  showMsg(msg, true);
+  chatInput.value = '';
+  chatInput.focus();
+});
+
+chatInput.addEventListener('keydown', e => {
+  if(e.key === 'Enter' && !e.shiftKey){
+    e.preventDefault();
+    if(!sendMsgBtn.disabled){
+      sendMsgBtn.click();
+    }
+  }
+});
+
+// Initial UI state
+reset();
+</script>
+</body>
+</html>
